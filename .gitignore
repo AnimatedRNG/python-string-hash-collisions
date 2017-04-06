@@ -1,0 +1,27 @@
+# Temporary files
+*~
+.*.swp
+.DS_STORE
+
+# Project Files
+*.sublime-workspace
+*.sublime-project
+.dir-locals.el
+compile_commands.json
+
+# Compiled files
+bin/
+
+# Moc files
+*_automoc.cpp
+*.cpp_parameters
+moc_*
+
+# CMake-specific files
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+CTestTestfile.cmake
+Makefile
+cmake_install.cmake
+install_manifest.txt
