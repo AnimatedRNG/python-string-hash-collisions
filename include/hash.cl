@@ -30,6 +30,7 @@ void bignum_add(ulong bignum[16], ulong value) {
 
 __kernel void hash(
     __constant ulong* offset,
+    __constant ulong* cmp,
     __global long* output) {
     int sz = INPUT_SIZE * BYTES_IN_LONG;
     int array_id = get_global_id(0);
@@ -42,5 +43,10 @@ __kernel void hash(
     bignum_add(offset_cpy, array_id);
     uchar* key = &offset_cpy;
 
-    output[array_id] = string_hash(key, sz);
+    ulong d_mask = *cmp;
+    long hash_value = string_hash(key, sz);
+    if ((hash_value & d_mask) == d_mask)
+       output[array_id] = hash_value;
+    else
+       output[array_id] = 0;
 }

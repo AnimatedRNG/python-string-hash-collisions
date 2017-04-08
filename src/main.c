@@ -392,7 +392,8 @@ void free_gpu(struct cl_state* state) {
     clReleaseDevice(state->device_id);
 }
 
-int hash(struct bignum* offset, struct cl_state* state, long* hash_outputs) {
+int hash(struct bignum* offset, struct cl_state* state, long* hash_outputs,
+         long d_mask) {
     int err;
     cl_event hash_task;
 
@@ -410,8 +411,18 @@ int hash(struct bignum* offset, struct cl_state* state, long* hash_outputs) {
         return -1;
     }
 
+    cl_mem d_mem = clCreateBuffer(state->context,
+                                  CL_MEM_READ_ONLY,
+                                  sizeof(long),
+                                  NULL,
+                                  NULL);
+    err = clEnqueueWriteBuffer(state->commands, d_mem, CL_TRUE, 0,
+                               sizeof(long), &d_mask, 0,
+                               NULL, NULL);
+
     err  = clSetKernelArg(state->kernel, 0, sizeof(cl_mem), &offset_mem);
-    err |= clSetKernelArg(state->kernel, 1, sizeof(cl_mem),
+    err  = clSetKernelArg(state->kernel, 1, sizeof(cl_mem), &d_mem);
+    err |= clSetKernelArg(state->kernel, 2, sizeof(cl_mem),
                           &(state->hash_mem));
     if (err != CL_SUCCESS) {
         printf("Failed to set kernel arguments! %s\n",
@@ -480,15 +491,17 @@ int main(int argc, char** argv) {
     int keep_iterating = 1;
     while (keep_iterating) {
         long hash_outputs[CHUNK_SIZE];
-        hash(offset, state, hash_outputs);
+        memset(&hash_outputs, 0, sizeof(hash_outputs));
+        if (hash(offset, state, hash_outputs, d_mask) == -1)
+            return 1;
         float start = (float) clock() / CLOCKS_PER_SEC;
-        for (int i = 0; i < CHUNK_SIZE; i++) {
+        /*for (int i = 0; i < CHUNK_SIZE; i++) {
             long elem = hash_outputs[i] & d_mask;
-            struct dynamic_array * bucket = hash_table[elem % HASH_TABLE_SIZE];
+            struct dynamic_array* bucket = hash_table[elem % HASH_TABLE_SIZE];
             da_append(bucket, hash_outputs[i]);
         }
         for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-            struct dynamic_array * entry = hash_table[i];
+            struct dynamic_array* entry = hash_table[i];
             for (size_t j = 0; j < entry->current_index; j++) {
                 long e1 = entry->data[j];
                 for (size_t k = 0; k < entry->current_index; k++) {
@@ -496,12 +509,18 @@ int main(int argc, char** argv) {
                     if (k >= j) {
                         break;
                     }
-                    if ( (e1 & d_mask) == (e2 & d_mask) ) {
+                    if ((e1 & d_mask) == (e2 & d_mask)) {
                         printf("%li and %li collided\n", e1, e2);
                         keep_iterating = 0;
                         break;
                     }
                 }
+            }
+            }*/
+        for (int i = 0; i < CHUNK_SIZE; i++) {
+            if (hash_outputs[i] > 0) {
+                printf("Collision with %li\n", hash_outputs[i]);
+                keep_iterating = 0;
             }
         }
         float end = (float) clock() / CLOCKS_PER_SEC;
