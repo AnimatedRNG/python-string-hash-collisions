@@ -7,8 +7,9 @@
 
 #include <CL/cl.h>
 
-#define CHUNK_SIZE 100000
-#define LINEAR_INCREASE 5;
+#define CHUNK_SIZE 1000000
+#define HASH_TABLE_SIZE 15000
+#define MULTIPLICATIVE_INCREASE 2;
 #define VECTOR_SIZE 16
 
 struct cl_state {
@@ -26,7 +27,7 @@ struct cl_state {
 };
 
 struct dynamic_array {
-    int* data;
+    long* data;
     size_t array_size;
     size_t current_index;
 };
@@ -39,15 +40,15 @@ struct dynamic_array* da_init() {
     struct dynamic_array* arr = malloc(sizeof(struct dynamic_array));
     arr->array_size = 1;
     arr->current_index = 0;
-    arr->data = malloc(sizeof(int) * arr->array_size);
+    arr->data = malloc(sizeof(long) * arr->array_size);
     return arr;
 }
 
-void da_append(struct dynamic_array* arr, int value) {
+void da_append(struct dynamic_array* arr, long value) {
     if (arr->current_index >= arr->array_size) {
-        size_t new_size = arr->array_size + LINEAR_INCREASE;
-        int* new_data = malloc(sizeof(int) * new_size);
-        memcpy(new_data, arr->data, arr->current_index * sizeof(int));
+        size_t new_size = arr->array_size * MULTIPLICATIVE_INCREASE;
+        long* new_data = malloc(sizeof(long) * new_size);
+        memcpy(new_data, arr->data, arr->current_index * sizeof(long));
         free(arr->data);
         arr->data = new_data;
         arr->array_size = new_size;
@@ -62,7 +63,7 @@ int da_read(struct dynamic_array* arr, int index) {
 void da_print(struct dynamic_array* arr) {
     printf("[");
     for (size_t i = 0; i < arr->current_index; i++) {
-        printf("%i", arr->data[i]);
+        printf("%li", arr->data[i]);
         if (i != arr->current_index - 1)
             printf(", ");
     }
@@ -463,25 +464,56 @@ int hash(struct bignum* offset, struct cl_state* state, long* hash_outputs) {
 }
 
 int main(int argc, char** argv) {
-    size_t num_chars = 10;
+    size_t d = 10;
     if (argc == 2)
-        num_chars = atoi(argv[1]);
-    const size_t utf32_char_size = 4;
-    size_t str_len = num_chars * utf32_char_size;
-    unsigned char* bytestring = gen_rdm_bytestream(str_len);
-    printf("bytestring %s\n", bytestring);
-    printf("Look! %li\n", string_hash(bytestring, str_len));
+        d = atoi(argv[1]);
 
-    free(bytestring);
+    long d_mask = (1 << d) - 1;
+    struct dynamic_array* hash_table[HASH_TABLE_SIZE];
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        hash_table[i] = da_init();
+    }
 
     struct cl_state* state = init_gpu();
     struct bignum* offset = bignum_init();
-    bignum_add(offset, 0);
-    long hash_outputs[CHUNK_SIZE];
-    memset(hash_outputs, -1, CHUNK_SIZE * sizeof(long));
-    hash(offset, state, hash_outputs);
-    for (int i = 0; i < CHUNK_SIZE; i++)
-        printf("%li\n", hash_outputs[i]);
-    printf("Elapsed time: %0.5f\n", state->benchmark / 1000000.0);
+
+    int keep_iterating = 1;
+    while (keep_iterating) {
+        long hash_outputs[CHUNK_SIZE];
+        hash(offset, state, hash_outputs);
+        float start = (float) clock() / CLOCKS_PER_SEC;
+        for (int i = 0; i < CHUNK_SIZE; i++) {
+            long elem = hash_outputs[i] & d_mask;
+            struct dynamic_array * bucket = hash_table[elem % HASH_TABLE_SIZE];
+            da_append(bucket, hash_outputs[i]);
+        }
+        for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+            struct dynamic_array * entry = hash_table[i];
+            for (size_t j = 0; j < entry->current_index; j++) {
+                long e1 = entry->data[j];
+                for (size_t k = 0; k < entry->current_index; k++) {
+                    long e2 = entry->data[k];
+                    if (k >= j) {
+                        break;
+                    }
+                    if ( (e1 & d_mask) == (e2 & d_mask) ) {
+                        printf("%li and %li collided\n", e1, e2);
+                        keep_iterating = 0;
+                        break;
+                    }
+                }
+            }
+        }
+        float end = (float) clock() / CLOCKS_PER_SEC;
+        printf("Collision check time: %f\n", end - start);
+        printf("Hash time: %0.5f\n", state->benchmark / 1000000000.0);
+        bignum_add(offset, CHUNK_SIZE);
+    }
+
+    free(offset);
     free_gpu(state);
+
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        da_free(hash_table[i]);
+    }
 }
