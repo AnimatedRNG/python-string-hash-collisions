@@ -41,7 +41,7 @@ __kernel void hash(
         offset_cpy[i] = offset[i];
     }
     bignum_add(offset_cpy, array_id);
-    uchar* key = &offset_cpy;
+    uchar* key = (unsigned char *) (&offset_cpy);
 
     ulong d_mask = *cmp;
     long hash_value = string_hash(key);

@@ -495,28 +495,6 @@ int main(int argc, char** argv) {
         if (hash(offset, state, hash_outputs, d_mask) == -1)
             return 1;
         float start = (float) clock() / CLOCKS_PER_SEC;
-        /*for (int i = 0; i < CHUNK_SIZE; i++) {
-            long elem = hash_outputs[i] & d_mask;
-            struct dynamic_array* bucket = hash_table[elem % HASH_TABLE_SIZE];
-            da_append(bucket, hash_outputs[i]);
-        }
-        for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-            struct dynamic_array* entry = hash_table[i];
-            for (size_t j = 0; j < entry->current_index; j++) {
-                long e1 = entry->data[j];
-                for (size_t k = 0; k < entry->current_index; k++) {
-                    long e2 = entry->data[k];
-                    if (k >= j) {
-                        break;
-                    }
-                    if ((e1 & d_mask) == (e2 & d_mask)) {
-                        printf("%li and %li collided\n", e1, e2);
-                        keep_iterating = 0;
-                        break;
-                    }
-                }
-            }
-            }*/
         for (int i = 0; i < CHUNK_SIZE; i++) {
             if (hash_outputs[i] > 0) {
                 printf("Collision with %li\n", hash_outputs[i]);
