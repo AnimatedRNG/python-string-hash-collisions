@@ -1,15 +1,16 @@
 #define INPUT_SIZE 16
 #define BYTES_IN_LONG 8
+#define SZ INPUT_SIZE * BYTES_IN_LONG
 
-long string_hash(unsigned char* bytestring, uchar length) {
+long string_hash(unsigned char* bytestring) {
     long x;
-    long len = length;
     unsigned char* p = bytestring;
 
     x = *p << 7;
-    while (--len >= 0)
+    #pragma unroll
+    for (int i = 0; i < SZ; i++)
         x = (1000003 * x) ^ *p++;
-    x ^= length;
+    x ^= SZ;
     if (x == -1)
         return -2;
     return x;
@@ -32,7 +33,6 @@ __kernel void hash(
     __constant ulong* offset,
     __constant ulong* cmp,
     __global long* output) {
-    int sz = INPUT_SIZE * BYTES_IN_LONG;
     int array_id = get_global_id(0);
 
     ulong offset_cpy[INPUT_SIZE];
@@ -44,7 +44,7 @@ __kernel void hash(
     uchar* key = &offset_cpy;
 
     ulong d_mask = *cmp;
-    long hash_value = string_hash(key, sz);
+    long hash_value = string_hash(key);
     if ((hash_value & d_mask) == d_mask)
        output[array_id] = hash_value;
     else

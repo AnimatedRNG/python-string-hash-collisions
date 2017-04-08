@@ -527,6 +527,7 @@ int main(int argc, char** argv) {
         printf("Collision check time: %f\n", end - start);
         printf("Hash time: %0.5f\n", state->benchmark / 1000000000.0);
         bignum_add(offset, CHUNK_SIZE);
+        bignum_print(offset);
     }
 
     free(offset);
